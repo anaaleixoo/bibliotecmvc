@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Bibliotec.Contexts;
 using Bibliotec.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using Microsoft.Extensions.Logging;
 
 namespace Bibliotec_mvc.Controllers
@@ -18,64 +19,111 @@ namespace Bibliotec_mvc.Controllers
         public LivroController(ILogger<LivroController> logger)
         {
             _logger = logger;
-        } 
+        }
 
-        Context context = new Context(); 
+        Context context = new Context();
 
         public IActionResult Index()
         {
-            ViewBag.Admin =  HttpContext.Session.GetString("Admin")!; 
+            ViewBag.Admin = HttpContext.Session.GetString("Admin")!;
 
             //Criar uma lista de livros 
-            List<Livro> listaLivros = context.Livro.ToList(); 
+            List<Livro> listaLivros = context.Livro.ToList();
 
             //Verificar se o livro tem reserva ou nao 
-            var livrosReservados = context.LivroReserva.ToDictionary(livro => livro.LivroID, livror => livror.DtReserva); 
+            var livrosReservados = context.LivroReserva.ToDictionary(livro => livro.LivroID, livror => livror.DtReserva);
 
             ViewBag.Livros = listaLivros;
-            ViewBag.LivrosComReserva = livrosReservados; 
+            ViewBag.LivrosComReserva = livrosReservados;
 
             return View();
         }
         [Route("Cadastro")]
         //metodo que retorna a tela de cadastro;
 
-        public IActionResult Cadastro(){
-               ViewBag.Admin =  HttpContext.Session.GetString("Admin")!; 
+        public IActionResult Cadastro()
+        {
+            ViewBag.Admin = HttpContext.Session.GetString("Admin")!;
 
 
 
 
 
-               ViewBag.Categorias = context.Categoria.ToList(); 
+            ViewBag.Categorias = context.Categoria.ToList();
             //retorna a view de cadastro:
             return View();
         }
 
-            //metodo para cadastrar um livro:
-            [Route("Cadastrar")] 
+        //metodo para cadastrar um livro:
+        [Route("Cadastrar")]
 
-            public IActionResult Cadastrar(IFormCollection form){
+        public IActionResult Cadastrar(IFormCollection form)
+        {
 
-                Livro novolivro = new Livro();
+            Livro novoLivro = new Livro();
 
-                // oque meu usuario escrever no formulario sera atribuidoao novoLivro 
+            // oque meu usuario escrever no formulario sera atribuidoao novoLivro 
 
-                novolivro.Nome = form["Nome"].ToString();
-                novolivro.Descricao = form["Descricao"].ToString();
-                novolivro.Editora = form["Editora"].ToString();
-                novolivro.Escritor = form["Escritor"].ToString();
-                novolivro.Idioma = form["Idioma"].ToString();
+            novoLivro.Nome = form["Nome"].ToString();
+            novoLivro.Descricao = form["Descricao"].ToString();
+            novoLivro.Editora = form["Editora"].ToString();
+            novoLivro.Escritor = form["Escritor"].ToString();
+            novoLivro.Idioma = form["Idioma"].ToString();
 
-                //img 
-                context.Livro.Add(novoLivro);
-                context.SaveCharges();
+            if (form.Files.Count > 0)
+            {
+                var arquivo = form.Files[0];
+
+
+                var pasta = Path.Combine(Directory.GetCurrentDirectory(), "wwwrot/imagens/livros");
+
+                if (Directory.Exists(pasta))
+                {
+                    //Criar a pasta: 
+                    Directory.CreateDirectory(pasta);
+                }
+                //
+                //
+                var caminho = Path.Combine(pasta, arquivo.FileName);
+
+                using (var stream = new FileStream(caminho, FileMode.Create))
+                {
+                    //
+                    arquivo.CopyTo(stream);
+                }
+
+                novoLivro.Imagem = arquivo.FileName;
             }
+            else
+            {
+                novoLivro.Imagem = "padrao.png";
+            }
+        
+        //img 
+        context.Livro.Add(novoLivro);
+                context.SaveChanges(); 
 
-        // [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-        // public IActionResult Error()
-        // {
-        //     return View("Error!");
-        // }
+
+                List<LivroCategoria> ListalivroCategorias = new List<LivroCategoria>();
+
+        string[] categoriasSelecionadas = form["Categoria"].ToString().Split(",");
+
+                foreach(string categoria in categoriasSelecionadas){  
+                    LivroCategoria livrocategoria = new LivroCategoria();
+        livrocategoria.CategoriaID = int.Parse(categoria);
+        livrocategoria.LivroID = novoLivro.LivroID;    
+
+                    ListalivroCategorias.Add(livrocategoria); 
+               }
+
+    //peguei a colecaonmda ListaLivroCategorias e coloquei na tabela LivroCategoria
+    context.LivroCategoria.AddRange(ListalivroCategorias); 
+
+                context.SaveChanges();
+
+                return LocalRedirect("/Livro/Cadastro");
+
+
+            }
     }
 }
